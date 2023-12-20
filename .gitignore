@@ -1,0 +1,4 @@
+# to ignore env file or not visible to others
+# because it contains sensitive data like passwords
+.env
+/node_modules
