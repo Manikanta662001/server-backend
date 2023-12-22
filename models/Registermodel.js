@@ -18,4 +18,5 @@ const userSchema = mongoose.Schema({
         require:true
     },
 })
-module.exports.Registermodel = mongoose.model('registereddata',userSchema)
+const Registermodel = mongoose.model('registereddata',userSchema)
+module.exports = {Registermodel}
