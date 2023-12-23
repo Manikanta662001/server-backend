@@ -1,4 +1,4 @@
-store = [
+const store = [
     {
         "id": 1,
         "description": "ferrai",
