@@ -7,8 +7,10 @@ const bcrypt = require("bcrypt"); //for password hashing
 
 
 
-//used to parse incoming JSON data
+//Middleware used to parse incoming JSON data
 app.use(express.json());
+// Middleware used to parse URL-encoded data
+app.use(express.urlencoded({extended:true}))
 //used to access data from one domain(url) to another domain
 app.use(cors());
 

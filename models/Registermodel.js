@@ -1,6 +1,6 @@
 const mongoose = require("mongoose")
 
-const userSchema = mongoose.Schema({
+const userSchema =new mongoose.Schema({
     firstName:{
         type:String,
         require:true
@@ -11,12 +11,16 @@ const userSchema = mongoose.Schema({
     },
     email:{
         type:String,
-        require:true
+        require:true,
+        unique:true
     },
     password:{
         type:String,
         require:true
     },
+    profileImageUrl:{
+        type:String,
+        require:true
+    }
 })
-const Registermodel = mongoose.model('registereddata',userSchema)
-module.exports = {Registermodel}
+module.exports.Registermodel = new mongoose.model('registereddata',userSchema)
