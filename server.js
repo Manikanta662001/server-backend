@@ -10,7 +10,7 @@ const bcrypt = require("bcrypt"); //for password hashing
 //Middleware used to parse incoming JSON data
 app.use(express.json());
 // Middleware used to parse URL-encoded data
-app.use(express.urlencoded({extended:true}))
+app.use(express.urlencoded({ extended: true }))
 //used to access data from one domain(url) to another domain
 app.use(cors());
 
@@ -32,12 +32,12 @@ const { store } = require("./mockData");
 const nodemailer = require("nodemailer");
 // Create a transporter with your email service provider's SMTP settings.
 const transporter = nodemailer.createTransport({
-    service: "Gmail", // Use your email service provider (e.g., 'Gmail', 'Outlook')
-    auth: {
-      user: "gundlurimanikanta142@gmail.com", // Your email address
-      pass: "eehf vqhz nuss kdvr", // Your email password or app-specific password
-    },
-  });
+  service: "Gmail", // Use your email service provider (e.g., 'Gmail', 'Outlook')
+  auth: {
+    user: "gundlurimanikanta142@gmail.com", // Your email address
+    pass: "eehf vqhz nuss kdvr", // Your email password or app-specific password
+  },
+});
 
 
 
@@ -52,36 +52,36 @@ const { Registermodel } = require("./models/Registermodel");
 app.post("/postuserdata", async (req, res) => {
   try {
     console.log(req.body, "REGISTERDATA");
-    const { password,email } = req.body;
-
+    const { password, email } = req.body;
     let total_items = { ...req.body };
     let hashed_password = await bcrypt.hash(password, 10);
     total_items = { ...total_items, password: hashed_password };
     const dbresponse = await Registermodel.create(total_items)
-      .then((dt) => dt)
-      .catch((err) => err)
-      .finally(() => mongoose.connection.close());
-    console.log(dbresponse, "DBRESPONSE");
+    console.log(dbresponse, "61DB")
+    //sending response
     res.status(200).json(dbresponse);
-
-    // Email content and details
+    //mail sending
     const mailOptions = {
-        from: 'gundlurimanikanta142@gmail.com', // Your email address
-        to: email, // Recipient's email address
-        subject: 'Registration', // Email subject
-        text: 'registration is successful', // Email text content
+      from: 'gundlurimanikanta142@gmail.com', // Your email address
+      to: email, // Recipient's email address
+      subject: 'Registration', // Email subject
+      text: 'registration is successful', // Email text content
     };
     // Send the email
     transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error('Error:', error);
-        } else {
-          console.log('Email sent:', info.response);
-        }
-      });
-    
+      if (error) {
+        console.error('Error:', error);
+      } else {
+        console.log('Email sent:', info.response);
+      }
+    });
   } catch (error) {
-    console.log(error);
+    if (error.message.includes("email_1 dup key")) {
+      res.status(600).json({ error: "Email Already Exists" });
+    }
+    else {
+      console.log(error, "other error")
+    }
   }
 });
 
@@ -91,73 +91,78 @@ app.post("/login", async (req, res) => {
   try {
     console.log(req.body, "LoginDATA");
     const user = await Registermodel.findOne({ email });
-    console.log(user, "5353");
+    console.log(Boolean(user), "5353");
     if (!user) {
-      res.status(404).json({ message: "User not found" });
+      throw new Error("User not found");
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     console.log(passwordMatch, "5757");
     if (passwordMatch) {
-      res.json({ message: "Login successful" });
-      
+      res.json({ message: "Login successful", user });
+
     } else {
-      res.status(500).json({ message: "Internal Server error" });
+      throw new Error("Password is wrong")
     }
   } catch (error) {
     console.log(error);
+    res.status(400).json({ error: error.message })
   }
 });
 
 // getting data from db
-app.get('/getdbdata',(req,res)=>{
+app.get('/getdbdata', (req, res) => {
   let db_data = Registermodel.find({})
-  .then(users=>{
-    console.log(users,"db data") 
-    res.status(200).json(users)
-  })
-  .catch(err=>{
-    console.error(err,"Error while getting data from db")
-    res.json({message:err})
-  })
-  console.log(db_data,"118")
+    .then(users => {
+      console.log(users, "db data")
+      res.status(200).json(users)
+    })
+    .catch(err => {
+      console.error(err, "Error while getting data from db")
+      res.json({ message: err })
+    })
+  console.log(db_data, "118")
 
 })
 
-app.put("/putupdate/:id",async(req,res)=>{
+app.put("/putupdate/:id", async (req, res) => {
   const id = req.params.id
-  console.log(id,"126")
-  // Validate if userId is a valid ObjectId
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    console.log("Invalid ObjectId format");
-    return res.status(400).send("Invalid ObjectId format");
+  console.log(id, "126")
+  try {
+    // Validate if userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log("Invalid ObjectId format");
+      throw new Error("Invalid ObjectId format");
+    }
+    let updated = await Registermodel.findByIdAndUpdate(id, req.body, { new: true })
+    console.log(updated, "130")
+    if (!updated) {
+      throw new Error("Error when updating the user");
+    }
+     res.status(200).json(updated)
   }
-  try{
-    let updated =await Registermodel.findByIdAndUpdate(id,req.body,{new:true})
-    console.log(updated,"130")
-    res.status(200).json(updated)
-  }
-  catch(err){
-    console.log(err)
-    res.status(500).json("Error when updating the user")
+  catch (error) {
+    console.log(error)
+    res.status(400).json({ error: error.message })
 
   }
 })
-app.delete("/delete/:id",async(req,res)=>{
+app.delete("/delete/:id", async (req, res) => {
   const id = req.params.id
-  console.log(id,"145")
-  // Validate if userId is a valid ObjectId
+  console.log(id, "145")
+  try {
+     // Validate if userId is a valid ObjectId
   if (!mongoose.Types.ObjectId.isValid(id)) {
     console.log("Invalid ObjectId format");
-    return res.status(400).send("Invalid ObjectId format");
+    throw new Error("Invalid ObjectId format");
   }
-  try{
-    let deleted =await Registermodel.findByIdAndDelete(id)
-    console.log(deleted,"153")
+    let deleted = await Registermodel.findByIdAndDelete(id)
+    if (!deleted) {
+      throw new Error("Error when deleting the user");
+    }
     res.status(200).json(deleted)
   }
-  catch(err){
-    console.log(err)
-    res.status(500).json("Error when deleting the user")
+  catch (error) {
+    res.status(400).json({ error: error.message})
 
   }
 })
