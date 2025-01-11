@@ -10,7 +10,7 @@ app.use(express.json());
 // Middleware used to parse URL-encoded data
 app.use(express.urlencoded({ extended: true }));
 const corsOptions = {
-  origin: "http://localhost:8000", // Allow only this origin
+  origin: "http://localhost:3000", // Allow only this origin
   methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
   credentials: true, // Allow credentials (e.g., cookies, authorization headers)
 };
