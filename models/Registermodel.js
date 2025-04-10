@@ -1,27 +1,52 @@
 const mongoose = require("mongoose");
 
-const userSchema = new mongoose.Schema({
-  firstName: {
-    type: String,
-    required: true,
-    minlength: 4,
+const userSchema = new mongoose.Schema(
+  {
+    firstName: {
+      type: String,
+      required: true,
+      min: 2,
+      max: 20,
+    },
+    lastName: {
+      type: String,
+      required: true,
+      min: 2,
+      max: 20,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      max: 50,
+    },
+    password: {
+      type: String,
+      required: true,
+      min: 5,
+    },
+    picturePath: {
+      type: String,
+      default: "",
+    },
+    friends: {
+      type: Array,
+      default: [],
+    },
+    pendingRequests: {
+      type: Array,
+      default: [],
+    },
+    messageCount: {
+      type: Map,
+      of: Number,
+      default: {},
+    },
+    location: String,
+    occupation: String,
+    status: String,
+    lastSeen: Date,
   },
-  lastName: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  profileImageUrl: {
-    type: String,
-    required: true,
-  },
-});
-module.exports.Registermodel = new mongoose.model("registereddata", userSchema);
+  { timestamps: true }
+);
+module.exports.Registermodel = new mongoose.model("usersDataDB", userSchema);

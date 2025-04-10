@@ -3,14 +3,15 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt"); //for password hashing
+const path = require("path");
+const multer = require("multer");
 
 //Middleware used to parse incoming JSON data
 app.use(express.json());
 // Middleware used to parse URL-encoded data
 app.use(express.urlencoded({ extended: true }));
 const corsOptions = {
-  origin: "http://localhost:3000", // Allow only this origin
+  origin: "*", // Allow only this origin
   methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
   credentials: true, // Allow credentials (e.g., cookies, authorization headers)
 };
@@ -19,176 +20,155 @@ app.use(cors(corsOptions));
 
 const PORT = process.env.PORT || 8000;
 
+app.use("/assets", express.static(path.join(__dirname, "public/assets")));
+
+/* FILE STORAGE */
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "public/assets");
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "@" + file.originalname);
+  },
+});
+const upload = multer({ storage: storage });
 // mongoose(library) is used to connect mongodb database.
 mongoose
   .connect(process.env.MONGODB_URL)
   .then(() => console.log("Mongodb is connected"))
   .catch((error) => console.log("Error while connecting your mongodb", error));
 
-//getting data from mockData.js file
-const { store } = require("./mockData");
-// console.log(store)
+const { register } = require("./controllers/auth");
+const { getUser } = require("./controllers/users");
+const { verifyToken } = require("././middleware/verifyToken");
 
-//to send email
-const nodemailer = require("nodemailer");
-// Create a transporter with your email service provider's SMTP settings.
-const transporter = nodemailer.createTransport({
-  service: "Gmail", // Use your email service provider (e.g., 'Gmail', 'Outlook')
-  auth: {
-    user: "gundlurimanikanta142@gmail.com", // Your email address
-    pass: "eseh ucdn joff iyco", // Your email password or app-specific password
+/* ROUTES WITH FILES */
+app.post("/auth/register", upload.single("picture"), register);
+
+/* ROUTES */
+const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
+const fileRoutes = require("./routes/fileRoutes");
+
+app.get("/getUser", verifyToken, getUser);
+app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
+app.use("/file", fileRoutes);
+
+/* SERVER FOR CHATS */
+const { Server } = require("socket.io");
+const { Registermodel } = require("./models/Registermodel");
+const { MessageModel } = require("./models/Messagemodel");
+const http = require("http");
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
   },
 });
 
-app.get("/carsget", (req, res) => {
-  res.status(200).json(store);
-});
+io.on("connection", (socket) => {
+  console.log("A user is Connected", socket.id);
+  socket.on("joinRoom", ({ roomId }) => {
+    socket.join(roomId);
+  });
+  socket.on("leaveRoom", ({ roomId }) => {
+    socket.leave(roomId);
+  });
+  socket.on("msgtyping", async ({ roomId, to }) => {
+    io.to(roomId).emit("msgtyping", { roomId, to });
+  });
+  socket.on("msgnottyping", async ({ roomId, to }) => {
+    io.to(roomId).emit("msgnottyping", { roomId, to });
+  });
+  socket.on("allmsgs", async ({ roomId }) => {
+    const allMsgs = await MessageModel.findOne({ roomId });
+    io.to(roomId).emit("getallmsgs", { messages: allMsgs?.messages ?? [] });
+  });
+  socket.on("clearMsgCount", async ({ roomId, userId, friendId }) => {
+    const receipientUser = await Registermodel.findById(userId);
+    if (receipientUser?.messageCount?.has(friendId)) {
+      receipientUser.messageCount.delete(friendId);
+      await receipientUser.save();
 
-//getting schema
-const { Registermodel } = require("./models/Registermodel");
+      io.emit("msgCount", {
+        from: userId,
+        receipientUser,
+      });
+    }
+  });
 
-//register post call
-app.post("/postuserdata", async (req, res) => {
-  try {
-    console.log(req.body, "REGISTERDATA");
-    const { password, email } = req.body;
-    let total_items = { ...req.body };
-    let hashed_password = password?.length
-      ? await bcrypt.hash(password, 10)
-      : password;
-    total_items = { ...total_items, password: hashed_password };
-    const dbresponse = await Registermodel.create(total_items);
-    console.log(dbresponse, "61DB");
-    //sending response
-    res.status(200).json(dbresponse);
-    //mail sending
-    const mailOptions = {
-      from: "gundlurimanikanta142@gmail.com", // Your email address
-      to: email, // Recipient's email address
-      subject: "Registration", // Email subject
-      text: "registration is successful", // Email text content
-    };
-    // Send the email
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error("Error:", error);
+  socket.on("updateLastSeen", async ({ selectedId, lastSeen }) => {
+    const receipientUser = await Registermodel.findById(selectedId);
+    receipientUser.lastSeen = lastSeen;
+    await receipientUser.save();
+    io.emit("updateLastSeen", {
+      id: receipientUser._id,
+      receipientUser: receipientUser,
+    });
+  });
+  socket.on("changeStatus", async ({ userId, status }) => {
+    const userObj = await Registermodel.findById(userId);
+    userObj.status = status;
+    const updatedUser = await userObj.save();
+    io.emit("changeStatus", {
+      updatedUser,
+    });
+  });
+
+  socket.on(
+    "message",
+    async ({ roomId, content, from, to, date, time, type, fileLink }) => {
+      const singleMessage = {
+        content,
+        from,
+        to,
+        time,
+        date,
+        type,
+      };
+      if (type === "image" || type === "document")
+        singleMessage.fileLink = fileLink;
+      const roomPresent = await MessageModel.findOne({ roomId });
+      if (roomPresent) {
+        roomPresent.messages.push(singleMessage);
+        const updated = await roomPresent.save();
       } else {
-        console.log("Email sent:", info.response);
+        const newMessage = await MessageModel({
+          messages: singleMessage,
+          roomId,
+        });
+        await newMessage.save();
       }
-    });
-  } catch (error) {
-    console.error("Error:", JSON.stringify(error.errors), error.message);
-    if (error.name === "ValidationError") {
-      const errors = Object.values(error.errors).map((err) =>
-        err.message.replace("Path ", "")
-      );
-      return res.status(400).json({ error: errors });
-    } else if (error.message.includes("email_1 dup key")) {
-      return res.status(600).json({ error: "Email Already Exists" });
-    } else {
-      return res.status(400).json({ error: error.message });
+      //to send message to a particular roomId
+      io.to(roomId).emit("message", singleMessage);
+      const activeRoom = io.sockets.adapter.rooms.get(roomId);
+      if (!activeRoom || activeRoom.size < 2) {
+        const receipientUser = await Registermodel.findById(to.id);
+        const currentCount = receipientUser.messageCount.get(from.id) || 0;
+        receipientUser.messageCount.set(from.id, currentCount + 1);
+        await receipientUser.save();
+        io.emit("msgCount", {
+          from: to.id,
+          receipientUser: receipientUser,
+        });
+      }
+      //change the Friends array of Registermodel
+      const currentUser = await Registermodel.findById(from.id);
+      const clonedObj = [...currentUser.friends];
+      const selectedUserIndex = clonedObj.findIndex((id) => id === to.id);
+      if (selectedUserIndex !== 0) {
+        const friend = clonedObj.splice(selectedUserIndex, 1);
+        clonedObj.unshift(friend[0]);
+        currentUser.friends = clonedObj;
+        await currentUser.save();
+      }
     }
-  }
+  );
 });
 
-// login post call
-app.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-  try {
-    console.log(req.body, "LoginDATA");
-    const user = await Registermodel.findOne({ email });
-    console.log(Boolean(user), "5353");
-    if (!user) {
-      throw new Error("User not found");
-    }
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    console.log(passwordMatch, "5757");
-    if (passwordMatch) {
-      // to set and send response headers to FE
-      res.set("Api-Key", "dummy_api_key");
-      res.json({ message: "Login successful", user });
-    } else {
-      throw new Error("Invalid Password");
-    }
-  } catch (error) {
-    console.log(error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// getting data from db
-app.get("/getdbdata", (req, res) => {
-  let db_data = Registermodel.find({})
-    .then((users) => {
-      console.log(users, "db data");
-      res.status(200).json(users);
-    })
-    .catch((err) => {
-      console.error(err, "Error while getting data from db");
-      res.json({ message: err });
-    });
-});
-
-app.put("/putupdate/:id", async (req, res) => {
-  const id = req.params.id;
-  console.log(id, "126");
-  try {
-    // Validate if userId is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log("Invalid ObjectId format");
-      throw new Error("Invalid ObjectId format");
-    }
-    let updated = await Registermodel.findByIdAndUpdate(id, req.body, {
-      new: true,
-    });
-    console.log(updated, "130");
-    if (!updated) {
-      throw new Error("Error when updating the user");
-    }
-    res.status(200).json(updated);
-  } catch (error) {
-    console.log(error);
-    res.status(400).json({ error: error.message });
-  }
-});
-app.delete("/delete/:id", async (req, res) => {
-  const id = req.params.id;
-  console.log(id, "145");
-  try {
-    // Validate if userId is a valid ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log("Invalid ObjectId format");
-      throw new Error("Invalid ObjectId format");
-    }
-    let deleted = await Registermodel.findByIdAndDelete(id);
-    if (!deleted) {
-      throw new Error("Error when deleting the user");
-    }
-    res.status(200).json(deleted);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// to test query params
-app.get("/check_params", async (req, res) => {
-  const { firstName, email } = req.query;
-  console.log("PARAMS::::", firstName, email);
-  try {
-    if (!firstName || !email) {
-      throw new Error("Firstname and Email are Required");
-    }
-    const valid_user = await Registermodel.findOne({ firstName, email });
-    if (valid_user) {
-      res.status(200).json({ message: "Valid User" });
-    } else {
-      throw new Error("Not a Valid User");
-    }
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
-
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`server is running in ${process.env.HOST}:${PORT}`);
 });
