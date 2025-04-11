@@ -30,6 +30,7 @@ const getUserFriends = async (req, res) => {
         messageCount,
         lastSeen,
         friends,
+        status,
       }) => {
         return {
           _id,
@@ -42,6 +43,7 @@ const getUserFriends = async (req, res) => {
           messageCount,
           lastSeen,
           friends,
+          status,
         };
       }
     );
@@ -50,4 +52,13 @@ const getUserFriends = async (req, res) => {
     return res.status(STATUS_TYPES.NOT_FOUND).json({ error: error.message });
   }
 };
-module.exports = { getUserFriends, getUser };
+
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await Registermodel.find();
+    return res.status(STATUS_TYPES.OK).json({ allUsers: users });
+  } catch (error) {
+    return res.status(STATUS_TYPES.NOT_FOUND).json({ error: error.message });
+  }
+};
+module.exports = { getUserFriends, getUser, getAllUsers };

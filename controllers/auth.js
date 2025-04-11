@@ -29,7 +29,7 @@ const register = async (req, res) => {
       picturePath,
       friends,
       location,
-      occupation
+      occupation,
     } = user;
     const emailExist = await Registermodel.findOne({ email });
     if (emailExist) {
@@ -66,7 +66,9 @@ const register = async (req, res) => {
         message: "User Registered Successfully and Email Sent",
       });
     });
-    res.status(STATUS_TYPES.CREATED).json({ message: "Registered Successfully" })
+    res
+      .status(STATUS_TYPES.CREATED)
+      .json({ message: "Registered Successfully" });
   } catch (error) {
     res.status(STATUS_TYPES.SERVER_ERROR).json({ error: error.message });
   }
@@ -105,8 +107,17 @@ const login = async (req, res) => {
         return res.status(STATUS_TYPES.SERVER_ERROR).send(error.toString());
       }
       const userObject = updatedUser.toObject();
+      // Convert messageCount Map to a plain object (if it exists and is a Map)
+      if (userObject.messageCount instanceof Map) {
+        userObject.messageCount = Object.fromEntries(userObject.messageCount);
+      }
+      // Convert pendingRequests Map to a plain object (if it exists and is a Map)
+      if (userObject.pendingRequests instanceof Map) {
+        userObject.pendingRequests = Object.fromEntries(userObject.pendingRequests);
+      }
       //we don't need to send the pwd to frontend
       delete userObject.password;
+      console.log("LOGIN:::", userObject);
       return res
         .status(STATUS_TYPES.OK)
         .json({ user: userObject, token, message: "Login Successful" });

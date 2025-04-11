@@ -34,8 +34,8 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
     pendingRequests: {
-      type: Array,
-      default: [],
+      type: Map,
+      default: {},
     },
     messageCount: {
       type: Map,

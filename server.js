@@ -118,6 +118,24 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on("sendRequest", async ({ userId, userName, friendId, friendName }) => {
+    const user = await Registermodel.findById(userId);
+    const isRequestExists = user.pendingRequests.get(friendId);
+    if (isRequestExists) {
+      user.pendingRequests.delete(friendId);
+    } else {
+      user.pendingRequests.set(friendId, {
+        name: friendName,
+        dateTime: new Date(),
+      });
+    }
+    console.log("PENDING:::", isRequestExists, user);
+    const updatedUser = await user.save();
+    io.emit("receiveSendRequest", {
+      updatedUser,
+    });
+  });
+
   socket.on(
     "message",
     async ({ roomId, content, from, to, date, time, type, fileLink }) => {
@@ -149,10 +167,10 @@ io.on("connection", (socket) => {
         const receipientUser = await Registermodel.findById(to.id);
         const currentCount = receipientUser.messageCount.get(from.id) || 0;
         receipientUser.messageCount.set(from.id, currentCount + 1);
-        await receipientUser.save();
+        const updated = await receipientUser.save();
         io.emit("msgCount", {
           from: to.id,
-          receipientUser: receipientUser,
+          receipientUser: updated,
         });
       }
       //change the Friends array of Registermodel
