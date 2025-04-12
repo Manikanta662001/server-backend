@@ -118,21 +118,58 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("sendRequest", async ({ userId, userName, friendId, friendName }) => {
-    const user = await Registermodel.findById(userId);
-    const isRequestExists = user.pendingRequests.get(friendId);
-    if (isRequestExists) {
-      user.pendingRequests.delete(friendId);
-    } else {
-      user.pendingRequests.set(friendId, {
-        name: friendName,
-        dateTime: new Date(),
+  socket.on(
+    "sendRequest",
+    async ({
+      userId,
+      userName,
+      userImage,
+      friendId,
+      friendName,
+      friendImage,
+    }) => {
+      const user = await Registermodel.findById(userId);
+      const toUser = await Registermodel.findById(friendId);
+      const isRequestExists = user.sendingRequests.get(friendId);
+      if (isRequestExists) {
+        user.sendingRequests.delete(friendId);
+        toUser.pendingRequests.delete(userId);
+      } else {
+        const dateTime = new Date();
+        user.sendingRequests.set(friendId, {
+          name: friendName,
+          dateTime,
+          picturePath: friendImage,
+        });
+        toUser.pendingRequests.set(userId, {
+          name: userName,
+          dateTime,
+          picturePath: userImage,
+        });
+      }
+      const updatedUser = await user.save();
+      const updatedToUser = await toUser.save();
+      io.emit("receiveSendRequest", {
+        updatedUser,
+        updatedToUser,
       });
     }
-    console.log("PENDING:::", isRequestExists, user);
+  );
+
+  socket.on("changeRequestStatus", async ({ type, userId, friendId }) => {
+    const user = await Registermodel.findById(userId);
+    const toUser = await Registermodel.findById(friendId);
+    if (type === "accept") {
+      user.friends.push(friendId);
+      toUser.friends.push(userId);
+    }
+    user.pendingRequests.delete(friendId);
+    toUser.sendingRequests.delete(friendId);
     const updatedUser = await user.save();
+    const updatedToUser = await toUser.save();
     io.emit("receiveSendRequest", {
       updatedUser,
+      updatedToUser,
     });
   });
 

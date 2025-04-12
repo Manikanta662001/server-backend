@@ -111,6 +111,10 @@ const login = async (req, res) => {
       if (userObject.messageCount instanceof Map) {
         userObject.messageCount = Object.fromEntries(userObject.messageCount);
       }
+      // Convert sendingRequests Map to a plain object (if it exists and is a Map)
+      if (userObject.sendingRequests instanceof Map) {
+        userObject.sendingRequests = Object.fromEntries(userObject.sendingRequests);
+      }
       // Convert pendingRequests Map to a plain object (if it exists and is a Map)
       if (userObject.pendingRequests instanceof Map) {
         userObject.pendingRequests = Object.fromEntries(userObject.pendingRequests);

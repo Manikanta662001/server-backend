@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema(
       type: Map,
       default: {},
     },
+    sendingRequests: {
+      type: Map,
+      default: {},
+    },
     messageCount: {
       type: Map,
       of: Number,
