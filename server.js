@@ -130,28 +130,34 @@ io.on("connection", (socket) => {
     }) => {
       const user = await Registermodel.findById(userId);
       const toUser = await Registermodel.findById(friendId);
+      let message = "";
       const isRequestExists = user.sendingRequests.get(friendId);
       if (isRequestExists) {
         user.sendingRequests.delete(friendId);
         toUser.pendingRequests.delete(userId);
       } else {
-        const dateTime = new Date();
-        user.sendingRequests.set(friendId, {
-          name: friendName,
-          dateTime,
-          picturePath: friendImage,
-        });
-        toUser.pendingRequests.set(userId, {
-          name: userName,
-          dateTime,
-          picturePath: userImage,
-        });
+        if (user.pendingRequests.get(friendId)) {
+          message = `${friendName.toUpperCase()} already sent you the request just accept it.`;
+        } else {
+          const dateTime = new Date();
+          user.sendingRequests.set(friendId, {
+            name: friendName,
+            dateTime,
+            picturePath: friendImage,
+          });
+          toUser.pendingRequests.set(userId, {
+            name: userName,
+            dateTime,
+            picturePath: userImage,
+          });
+        }
       }
       const updatedUser = await user.save();
       const updatedToUser = await toUser.save();
       io.emit("receiveSendRequest", {
         updatedUser,
         updatedToUser,
+        message
       });
     }
   );
@@ -164,12 +170,14 @@ io.on("connection", (socket) => {
       toUser.friends.push(userId);
     }
     user.pendingRequests.delete(friendId);
-    toUser.sendingRequests.delete(friendId);
+    toUser.sendingRequests.delete(userId);
     const updatedUser = await user.save();
     const updatedToUser = await toUser.save();
     io.emit("receiveSendRequest", {
       updatedUser,
       updatedToUser,
+      message:"",
+      type
     });
   });
 
